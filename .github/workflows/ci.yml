@@ -1,0 +1,44 @@
+name: CI
+on:
+  push:
+    branches: [main, feature/initial-core]
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  go:
+    strategy:
+      matrix:
+        go: ['1.26.x', '1.27.x']
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
+        with:
+          go-version: ${{ matrix.go }}
+          cache: true
+      - run: test -z "$(gofmt -l .)"
+      - run: go mod verify
+      - run: go vet ./...
+      - run: go test ./...
+      - run: go test -race ./...
+        env:
+          CGO_ENABLED: '1'
+      - run: go build ./cmd/monitor
+      - run: CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -o /tmp/monitor-arm64 ./cmd/monitor
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - name: Validate Compose
+        run: docker compose -f deployments/docker/compose.yaml config --quiet
+      - name: Build, smoke-test and restart with persistent storage
+        env:
+          POLL_INTERVAL: 1s
+        run: bash tests/integration/docker-smoke.sh
+      - name: Container logs
+        if: always()
+        run: docker compose -f deployments/docker/compose.yaml logs --no-color
+      - name: Cleanup isolated CI volume
+        if: always()
+        run: docker compose -f deployments/docker/compose.yaml down --volumes
