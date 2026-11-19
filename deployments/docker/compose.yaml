@@ -1,0 +1,28 @@
+services:
+  monitor:
+    build:
+      context: ../..
+      dockerfile: deployments/docker/Dockerfile
+    environment:
+      PROVIDER_MODE: ${PROVIDER_MODE:-mock}
+      POLL_INTERVAL: ${POLL_INTERVAL:-30s}
+      REQUEST_TIMEOUT: ${REQUEST_TIMEOUT:-5s}
+      MAX_RETRIES: ${MAX_RETRIES:-2}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      TIME_ZONE: ${TIME_ZONE:-UTC}
+      DATABASE_PATH: /data/monitor.db
+      HTTP_LISTEN_ADDRESS: 0.0.0.0:8080
+    ports:
+      - "127.0.0.1:8080:8080"
+    volumes:
+      - monitor-data:/data
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    restart: unless-stopped
+    stop_grace_period: 15s
+    pids_limit: 64
+volumes:
+  monitor-data:
